@@ -106,7 +106,7 @@ def send_message(message):
         "Authorization": "Bearer " + token,
         }
     myobj = {
-        'channel': 'kxo-talenter-2023', 
+        'channel': 'kxo-lunsjbot', 
         'text': message,
         }
 
