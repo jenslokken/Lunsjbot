@@ -44,7 +44,7 @@ def generate_menu():
                     day_content[i].append(menu_item[5:])
                 except:
                     print(day, "fail")
-                    print(menu_item, *day_content, sep="\n")
+                    # print(menu_item, *day_content, sep="\n")
                     sys.exit(1)
 
     content = []
@@ -115,7 +115,7 @@ import os
 
 def load_api_keys():
     #"""Loads API keys from .env file"""
-    API_KEY_1 = os.environ.get('OPENAI_API_KEY_1')
+    API_KEY_1 = os.environ.get('AZURE_OPENAI_KEY')
     return API_KEY_1
 
 def select_api_key(model):
@@ -127,19 +127,25 @@ def select_api_key(model):
     else:
         raise ValueError("Invalid model specified.")
 
-def generate_openai_response(prompt, model="gpt-3.5-turbo", temperature=0, num_responses=1):
+def generate_openai_response(prompt, model="gpt-3.5-turbo", temperature=0.7, num_responses=1):
     #"""Generates a response from OpenAI's GPT model"""
     openai.api_key = select_api_key(model)
+    openai.api_type = "azure"
+    openai.api_base = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    openai.api_version = "2023-07-01-preview"
     messages = [{"role": "user", "content": prompt}]
     responses = []
     for _ in range(num_responses):
         
         response = openai.ChatCompletion.create(
-            model=model,
+            engine="gpt-4",
             messages=messages,
             temperature=temperature,
+            max_tokens=800,
+            top_p=0.95,
+            frequency_penalty=0,
+            presence_penalty=0
         )
-        print(response)
         responses.append(response.choices[0].message["content"])
     return responses if num_responses > 1 else responses[0]
 
@@ -151,16 +157,23 @@ time.sleep(3)
 message = ""
 
 for key, value in day_menu.items():
-    if value[-1] != ".":
-        value += "."
+    try:
+        if value[-1] != ".":
+            value += "."
+    except:
+        pass
     line = key.capitalize() + ": " + value.capitalize() + "\n"
     message += line
 
 message = message.strip()
-print("kan du rettskrive dette?\n" + message)
+
 try:
-    text = generate_openai_response("Kan du rette alle skrivefeil i denne teksten?\n" + message)
-except:
+    prompt = "Kan du rette alle skrivefeil og ordelingsfeil i denne teksten?\n" + message
+    # print(prompt)
+    text = generate_openai_response(prompt)
+    # print(".-----------")
+except Exception as e:
+    print(e)
     text = message
 print(text)
 # send_message(text)
