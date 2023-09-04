@@ -15,9 +15,10 @@ def generate_menu():
 
     week = ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "googleprediction"]
     menu = str(soup).lower()
-    menu = menu.replace("u00f8", "ø" )
-    menu = menu.replace("u00e5", "å" )
-    menu = menu.replace("u00e6", "æ" )
+    menu = menu.replace("\\u00f8", "ø" )  
+    menu = menu.replace("\\u00e5", "å" )
+    menu = menu.replace("\\u00e6", "æ" )
+    menu = menu.replace("\\u0026amp;", "og")
     menu_list = menu.split("\\")
     day_content = [[] for _ in range(len(week))]
     day_idx = []
@@ -40,17 +41,10 @@ def generate_menu():
             menu_item = menu_list[j]
             if "u003e" in menu_item or "u00f8" in menu_item or "u00e5" in menu_item or "u00e6" in menu_item:
                 try:
-                    if "u00f8" in menu_item:
-                        day_content[i][-1] += "ø" + menu_item[5:]
-                    elif "u00e5" in menu_item:
-                        day_content[i][-1] += "å" + menu_item[5:]
-                    elif "u00e6" in menu_item:
-                        day_content[i][-1] += "æ" + menu_item[5:]
-                    else:
-                        day_content[i].append(menu_item[5:])
+                    day_content[i].append(menu_item[5:])
                 except:
                     print(day, "fail")
-                    print(menu_item, *day_content, sep="\n")
+                    # print(menu_item, *day_content, sep="\n")
                     sys.exit(1)
 
     content = []
@@ -113,19 +107,74 @@ def send_message(message):
     x = requests.post(url, headers=headers, json = myobj)
     print("Status Code", x.status_code)
 
-print(day_menu)
-send_message("Dagens meny i kantinen er:lunch-train::drum_with_drumsticks::drum_with_drumsticks::")
+
+# openai_utils.py
+import openai
+import os
+
+
+def load_api_keys():
+    #"""Loads API keys from .env file"""
+    API_KEY_1 = os.environ.get('AZURE_OPENAI_KEY')
+    return API_KEY_1
+
+def select_api_key(model):
+    #"""Selects the appropriate API key based on model"""
+    API_KEY_1 = load_api_keys()
+
+    if model == "gpt-3.5-turbo":
+        return API_KEY_1
+    else:
+        raise ValueError("Invalid model specified.")
+
+def generate_openai_response(prompt, model="gpt-3.5-turbo", temperature=0.7, num_responses=1):
+    #"""Generates a response from OpenAI's GPT model"""
+    openai.api_key = select_api_key(model)
+    openai.api_type = "azure"
+    openai.api_base = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    openai.api_version = "2023-07-01-preview"
+    messages = [{"role": "user", "content": prompt}]
+    responses = []
+    for _ in range(num_responses):
+        
+        response = openai.ChatCompletion.create(
+            engine="gpt-4",
+            messages=messages,
+            temperature=temperature,
+            max_tokens=800,
+            top_p=0.95,
+            frequency_penalty=0,
+            presence_penalty=0
+        )
+        responses.append(response.choices[0].message["content"])
+    return responses if num_responses > 1 else responses[0]
+
+
+# send_message("Dagens meny i kantinen er:lunch-train::drum_with_drumsticks::drum_with_drumsticks::")
 
 time.sleep(3)
 
 message = ""
 
 for key, value in day_menu.items():
-    if value[-1] != ".":
-        value += "."
+    try:
+        if value[-1] != ".":
+            value += "."
+    except:
+        pass
     line = key.capitalize() + ": " + value.capitalize() + "\n"
     message += line
 
 message = message.strip()
-send_message(message)
+
+try:
+    prompt = "Kan du rette alle skrivefeil og ordelingsfeil i denne teksten?\n" + message
+    # print(prompt)
+    text = generate_openai_response(prompt)
+    # print(".-----------")
+except Exception as e:
+    print(e)
+    text = message
+print(text)
+# send_message(text)
 
