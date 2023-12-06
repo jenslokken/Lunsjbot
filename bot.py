@@ -7,6 +7,9 @@ import datetime
 import time
 import chompjs
 
+# openai_utils.py
+from openai import AzureOpenAI
+
 
 def generate_menu():
     menu_path = "https://tullin.munu.shop/meny"
@@ -49,11 +52,6 @@ def send_message(message):
     print("Status Code", x.status_code)
 
 
-# openai_utils.py
-import openai
-import os
-
-
 def load_api_keys():
     # """Loads API keys from .env file"""
     API_KEY_1 = os.environ.get("AZURE_OPENAI_KEY")
@@ -70,19 +68,22 @@ def select_api_key(model):
         raise ValueError("Invalid model specified.")
 
 
+client = AzureOpenAI(
+    api_key=select_api_key(model),
+    azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
+    api_version="2023-07-01-preview",
+)
+
+
 def generate_openai_response(
     prompt, model="gpt-3.5-turbo", temperature=0.7, num_responses=1
 ):
     # """Generates a response from OpenAI's GPT model"""
-    openai.api_key = select_api_key(model)
-    openai.api_type = "azure"
-    openai.api_base = os.environ.get("AZURE_OPENAI_ENDPOINT")
-    openai.api_version = "2023-07-01-preview"
     messages = [{"role": "user", "content": prompt}]
     responses = []
     for _ in range(num_responses):
-        response = openai.ChatCompletion.create(
-            engine="gpt-4",
+        response = client.chat.completions.create(
+            model="gpt-4",
             messages=messages,
             temperature=temperature,
             max_tokens=800,
@@ -90,7 +91,7 @@ def generate_openai_response(
             frequency_penalty=0,
             presence_penalty=0,
         )
-        responses.append(response.choices[0].message["content"])
+        responses.append(response.choices[0].message.content)
     return responses if num_responses > 1 else responses[0]
 
 
