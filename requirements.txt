@@ -6,3 +6,4 @@ azure-functions
 requests==2.31.0
 beautifulsoup4
 openai
+chompjs

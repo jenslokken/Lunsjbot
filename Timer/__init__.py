@@ -9,16 +9,17 @@ import os
 import datetime
 import time
 import openai
-
+import chompjs
 
 
 def load_api_keys():
-    #"""Loads API keys from .env file"""
-    API_KEY_1 = os.environ.get('AZURE_OPENAI_KEY')
+    # """Loads API keys from .env file"""
+    API_KEY_1 = os.environ.get("AZURE_OPENAI_KEY")
     return API_KEY_1
 
+
 def select_api_key(model):
-    #"""Selects the appropriate API key based on model"""
+    # """Selects the appropriate API key based on model"""
     API_KEY_1 = load_api_keys()
 
     if model == "gpt-3.5-turbo":
@@ -26,8 +27,11 @@ def select_api_key(model):
     else:
         raise ValueError("Invalid model specified.")
 
-def generate_openai_response(prompt, model="gpt-3.5-turbo", temperature=0.7, num_responses=1):
-    #"""Generates a response from OpenAI's GPT model"""
+
+def generate_openai_response(
+    prompt, model="gpt-3.5-turbo", temperature=0.7, num_responses=1
+):
+    # """Generates a response from OpenAI's GPT model"""
     openai.api_key = select_api_key(model)
     openai.api_type = "azure"
     openai.api_base = os.environ.get("AZURE_OPENAI_ENDPOINT")
@@ -35,7 +39,6 @@ def generate_openai_response(prompt, model="gpt-3.5-turbo", temperature=0.7, num
     messages = [{"role": "user", "content": prompt}]
     responses = []
     for _ in range(num_responses):
-        
         response = openai.ChatCompletion.create(
             engine="gpt-4",
             messages=messages,
@@ -43,10 +46,11 @@ def generate_openai_response(prompt, model="gpt-3.5-turbo", temperature=0.7, num
             max_tokens=800,
             top_p=0.95,
             frequency_penalty=0,
-            presence_penalty=0
+            presence_penalty=0,
         )
         responses.append(response.choices[0].message["content"])
     return responses if num_responses > 1 else responses[0]
+
 
 def generate_menu():
     menu_path = "https://tullin.munu.shop/meny"
@@ -54,138 +58,86 @@ def generate_menu():
     page = requests.get(menu_path)
     soup = BeautifulSoup(page.content, "html.parser")
 
-    week = ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "googleprediction"]
-    menu = str(soup).lower()
-    menu = menu.replace("u00f8", "ø" )
-    menu = menu.replace("u00e5", "å" )
-    menu = menu.replace("u00e6", "æ" )
-    menu_list = menu.split("\\")
-    day_content = [[] for _ in range(len(week))]
-    day_idx = []
+    script = soup.findAll("script")
+    j = script[1].text[42:-3]
+    j = j.split("JSON.parse(")[-1][1:]
+    j = j.replace("\\u0022", '"')
+    j = j.replace("\\u003C", "<")
+    j = j.replace("\\u003E", ">")
+    j = j.replace('\\\\"', "'")
 
-    for j, day in enumerate(week):
-        seen_count = 0
-        for i, item in enumerate(menu_list):
-            if day in item:
-                seen_count += 1
-                if seen_count == 3 or j == (len(week) - 1):
-                    day_idx.append(i)
-                
+    js = chompjs.parse_js_object(j)
+    js = js["general"]["staticPages"][-1]["body"]
 
-    for i, day in enumerate(week[:-1]):
-        start = day_idx[i]
-        stop = day_idx[i + 1]
-        for j in range(start, stop):
-            #if menu_list[j] != "" and  "suppe" in menu_list[j].lower() or "vegetar" in menu_list[j].lower():
-                #day_content[i] = [hovedrett, suppe, vegetar]ß
-            menu_item = menu_list[j]
-            if "u003e" in menu_item or "u00f8" in menu_item or "u00e5" in menu_item or "u00e6" in menu_item:
-                try:
-                    if "u00f8" in menu_item:
-                        day_content[i][-1] += "ø" + menu_item[5:]
-                    elif "u00e5" in menu_item:
-                        day_content[i][-1] += "å" + menu_item[5:]
-                    elif "u00e6" in menu_item:
-                        day_content[i][-1] += "æ" + menu_item[5:]
-                    else:
-                        day_content[i].append(menu_item[5:])
-                except:
-                    print(day, "fail")
-                    print(menu_item, *day_content, sep="\n")
-                    sys.exit(1)
+    new_soup = BeautifulSoup(js, "html.parser")
+    out = new_soup.get_text(separator=" ").replace("\\n", "").replace("\\r", "")
+    return out
 
-    content = []
-
-    for day in day_content:
-        new_day = ""
-        for d in day:
-            if not d:
-                continue
-            new_day += d + " "
-        new_day = new_day.strip()
-        content.append(new_day)
-
-    content = content[:-1]
-
-    output = {}
-
-    for c in content:
-        output_dict = {
-            "hovedrett" : "",
-            "vegetar" : "",
-            "suppe" : ""
-            }
-
-        splitted = c.split()
-        day = splitted[0]
-        c = " ".join(splitted[1:])
-
-        kjøtt = c.split("vegetar:")
-        vegetar = kjøtt[-1].split("suppe:")
-        kjøtt = kjøtt[0].strip()
-        suppe = "".join(vegetar[1:]).strip()
-        vegetar = vegetar[0].strip()
-        output_dict["hovedrett"] = kjøtt
-        output_dict["vegetar"] = vegetar
-        output_dict["suppe"] = suppe
-        output[day] = output_dict
-    return output
 
 def run():
-
-    token = os.environ.get('TOKEN')
-
-    week = ["mandag", "tirsdag", "onsdag", "torsdag", "fredag"]
-    week_menu = generate_menu()
-    today = datetime.date.today().weekday()
-    day_menu = week_menu[week[today]]
-
-    def send_message(message):
-        url = 'https://slack.com/api/chat.postMessage'
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token,
-            }
-        myobj = {
-            'channel': 'kxo-lunsjbot', 
-            'text': message,
-            }
-
-        x = requests.post(url, headers=headers, json = myobj)
-        print("Status Code", x.status_code)
-
-    print(day_menu)
-    send_message("Dagens meny i kantinen er:lunch-train::drum_with_drumsticks::drum_with_drumsticks::")
-
-    time.sleep(3)
+    token = os.environ.get("TOKEN")
 
     message = ""
+    menu = generate_openai_response(
+        'Kan du hente ut en json på dette formatet fra denne teksten? {dag: {"hovedrett":, "vegetar": , "Suppe: }} og rette eventuelle skrivefeil?'
+        + generate_menu()
+        + "\n PS! hvis det ikke er hovedrett, så setter du vegetar som hovedrett og fjern vegetar"
+    )
+
+    week = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]
+
+    today = datetime.date.today().weekday()
+    menu = chompjs.parse_js_object(menu)
+
+    try:
+        day_menu = menu[week[today]]
+    except:
+        week = list(map(str.lower, week))
+        day_menu = menu[week[today]]
 
     for key, value in day_menu.items():
-        if value[-1] != ".":
-            value += "."
+        if not value:
+            continue
+        try:
+            if value[-1] != ".":
+                value += "."
+        except:
+            pass
         line = key.capitalize() + ": " + value.capitalize() + "\n"
         message += line
 
-    message = message.strip()
-    try:
-        prompt = "Kan du rette alle skrivefeil og ordelingsfeil i denne teksten?\n" + message
-        text = generate_openai_response(prompt)
+    def send_message(message):
+        url = "https://slack.com/api/chat.postMessage"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token,
+        }
+        myobj = {
+            "channel": "kxo-lunsjboten",
+            "text": message,
+        }
 
-    except Exception as e:
-        print(e)
-        text = message
-    
-    send_message(text)
+        x = requests.post(url, headers=headers, json=myobj)
+        print("Status Code", x.status_code)
+
+    send_message(
+        "Dagens meny i kantinen er:lunch-train::drum_with_drumsticks::drum_with_drumsticks::"
+    )
+
+    time.sleep(3)
+
+    send_message(message)
 
 
 def main(mytimer: func.TimerRequest) -> None:
-    utc_timestamp = datetime.datetime.utcnow().replace(
-        tzinfo=datetime.timezone.utc).isoformat()
+    utc_timestamp = (
+        datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+    )
 
-    logging.info('Python timer trigger function ran at %s', utc_timestamp)
+    logging.info("Python timer trigger function ran at %s", utc_timestamp)
     run()
     return 0
+
 
 if __name__ == "__main__":
     main()

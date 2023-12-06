@@ -1,8 +1,12 @@
 {
-    "azureFunctions.deploySubpath": ".",
-    "azureFunctions.scmDoBuildDuringDeployment": true,
-    "azureFunctions.pythonVenv": "env",
-    "azureFunctions.projectLanguage": "Python",
-    "azureFunctions.projectRuntime": "~4",
-    "debug.internalConsoleOptions": "neverOpen"
+  "azureFunctions.deploySubpath": ".",
+  "azureFunctions.scmDoBuildDuringDeployment": true,
+  "azureFunctions.pythonVenv": "env",
+  "azureFunctions.projectLanguage": "Python",
+  "azureFunctions.projectRuntime": "~4",
+  "debug.internalConsoleOptions": "neverOpen",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "python.formatting.provider": "none"
 }
